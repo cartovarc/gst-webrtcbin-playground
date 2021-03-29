@@ -1,45 +1,33 @@
 <!DOCTYPE html>
-<!--
-  vim: set sts=2 sw=2 et :
 
-
-  Demo Javascript app for negotiating and streaming a sendrecv webrtc stream
-  with a GStreamer app. Runs only in passive mode, i.e., responds to offers
-  with answers, exchanges ICE candidates, and streams.
-
-  Author: Nirbheek Chauhan <nirbheek@centricular.com>
--->
 <html>
   <head>
     <meta charset="utf-8"/>
     <style>
       .error { color: red; }
     </style>
-    <script src="webrtc.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.3.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.2.10/firebase-firestore.js"></script>
+    <script src="webrtc_streaming.js"></script>
     <script>
-      window.onload = websocketServerConnect;
+      
+      function start_streaming() {
+          const webrtc_streaming = new WebRTCStreaming();
+          let device_id = "apolo";
+          webrtc_streaming.initialize(device_id, "video", "audio");
+          webrtc_streaming.start();
+      }
+
+    </script>
+    <script>
+      window.onload = start_streaming;
     </script>
   </head>
 
   <body>
-    <div><video id="stream" autoplay playsinline>Your browser doesn't support video</video></div>
-    <div>Status: <span id="status">unknown</span></div>
-    <div><textarea id="text" cols=40 rows=4></textarea></div>
-    <br/>
-    <div>
-      <label for="peer-connect">Enter peer id</label>
-      <input id="peer-connect" type="text" name="text">
-      <input id="peer-connect-button" onclick="onConnectClicked();" type="button" value="Connect">
-      <!-- Request the peer to send the offer by sending the OFFER_REQUEST message.
-        Same as the -​-remote-offerer flag in the sendrecv C example -->
-      <input id="remote-offerer" type="checkbox" autocomplete="off"><span>Remote offerer</span>
-    </div>
-
-    <div>Our id is <b id="peer-id">unknown</b></div>
-    <br/>
-    <div>
-      <div>getUserMedia constraints being used:</div>
-      <div><textarea id="constraints" cols=40 rows=4></textarea></div>
+    <div id="media">
+      <audio id="audio" autoplay="true" muted></audio>
+      <video id="video" width="720" height="480" controls autoplay="true" playsinline="true" muted></video>
     </div>
   </body>
 </html>

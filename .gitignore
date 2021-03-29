@@ -1,4 +1,5 @@
 signaling-server/cert.pem
 signaling-server/key.pem
 signaling-server/firebase.js
+signaling-server/firebase_credentials.json
 venv

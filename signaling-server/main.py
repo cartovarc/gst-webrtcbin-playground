@@ -1,10 +1,14 @@
 import random
+import json
 import ssl
 import websockets
 import asyncio
 import sys
 import json
 import argparse
+import firebase_admin
+from firebase_admin import credentials
+from firebase_admin import firestore
 
 import gi
 gi.require_version('Gst', '1.0')
@@ -52,29 +56,52 @@ webrtcbin
 # '''
 
 class WebRTCClient:
-    def __init__(self, id_, peer_id, server):
-        self.id_ = id_
+    def __init__(self, device_id):
         self.conn = None
         self.pipe = None
         self.webrtc = None
-        self.peer_id = peer_id
-        self.server = server or 'wss://webrtc.nirbheek.in:8443'
+        
+        # Initialize firebase
+        cred = credentials.Certificate('firebase_credentials.json')
+        firebase_admin.initialize_app(cred, {
+            'databaseURL': 'https://aras-cloud.firebaseio.com'
+        })
 
-    async def connect(self):
-        sslctx = ssl.create_default_context(purpose=ssl.Purpose.CLIENT_AUTH)
-        self.conn = await websockets.connect(self.server, ssl=sslctx)
-        await self.conn.send('HELLO %d' % self.id_)
+        self.listen_play_requests()
 
-    async def setup_call(self):
-        await self.conn.send('SESSION {}'.format(self.peer_id))
+
+    def listen_play_requests(self):
+        requestId = "newRequest"
+        clientId = "INAq9J4xdyYZWkLZBltq"
+        deviceId = "cOpVPvoCZsGcLbUnaCmp"
+
+        db_firestore = firestore.client()
+        ref_play_request = db_firestore.collection('clients').document(clientId).collection("devices").document(deviceId).collection("peerRequests").document(requestId)
+
+
+        def on_snapshot(doc_snapshot, changes, read_time):
+            play_request = doc_snapshot[0].to_dict()
+            if "peerSDP" in play_request:
+                self.start_pipeline()
+                peer_sdp = play_request["peerSDP"]
+                self.handle_sdp(peer_sdp)
+
+        ref_play_request.on_snapshot(on_snapshot)
+
 
     def send_sdp_offer(self, offer):
         text = offer.sdp.as_text()
         print("Sending offer:", text)
-        msg = json.dumps({'sdp': {'type': 'offer', 'sdp': text}})
-        loop = asyncio.new_event_loop()
-        loop.run_until_complete(self.conn.send(msg))
-        loop.close()
+        msg = json.dumps({'type': 'offer', 'sdp': text})
+
+        requestId = "newRequest"
+        clientId = "INAq9J4xdyYZWkLZBltq"
+        deviceId = "cOpVPvoCZsGcLbUnaCmp"
+
+        db_firestore = firestore.client()
+        ref_play_request = db_firestore.collection('clients').document(clientId).collection("devices").document(deviceId).collection("peerRequests").document(requestId)
+        ref_play_request.set({"deviceSDP": msg})
+
 
     def on_offer_created(self, promise, _, __):
         print("on_offer_created")
@@ -97,9 +124,15 @@ class WebRTCClient:
         icemsg = json.dumps(
             {'ice': {'candidate': candidate, 'sdpMLineIndex': mlineindex}}
         )
-        loop = asyncio.new_event_loop()
-        loop.run_until_complete(self.conn.send(icemsg))
-        loop.close()
+
+
+        requestId = "newRequest"
+        clientId = "INAq9J4xdyYZWkLZBltq"
+        deviceId = "cOpVPvoCZsGcLbUnaCmp"
+
+        db_firestore = firestore.client()
+        ref_ice_candidate = db_firestore.collection('clients').document(clientId).collection("devices").document(deviceId).collection("peerRequests").document(requestId).collection("iceCandidates").document("candidate")
+        ref_ice_candidate.set({"hola", "mundo"})
 
     def start_pipeline(self):
         print("start_pipeline")
@@ -115,8 +148,8 @@ class WebRTCClient:
         assert (self.webrtc)
         msg = json.loads(message)
         if 'sdp' in msg:
-            sdp = msg['sdp']
-            assert(sdp['type'] == 'answer')
+            sdp = msg
+            assert(sdp['type'] == 'offer')
             sdp = sdp['sdp']
             print('Received answer:\n%s' % sdp)
             res, sdpmsg = GstSdp.SDPMessage.new()
@@ -138,26 +171,6 @@ class WebRTCClient:
         self.pipe = None
         self.webrtc = None
 
-    async def loop(self):
-        assert self.conn
-        async for message in self.conn:
-            if message == 'HELLO':
-                await self.setup_call()
-            elif message == 'SESSION_OK':
-                self.start_pipeline()
-            elif message.startswith('ERROR'):
-                print(message)
-                self.close_pipeline()
-                return 1
-            else:
-                self.handle_sdp(message)
-        self.close_pipeline()
-        return 0
-
-    async def stop(self):
-        if self.conn:
-            await self.conn.close()
-        self.conn = None
 
 
 def check_plugins():
@@ -177,12 +190,11 @@ if __name__ == "__main__":
     if not check_plugins():
         sys.exit(1)
     parser = argparse.ArgumentParser()
-    parser.add_argument('peerid', help='String ID of the peer to connect to')
-    parser.add_argument('--server', help='Signalling server to connect')
+    parser.add_argument('device_id', help='String ID of the peer to connect to')
     args = parser.parse_args()
-    our_id = random.randrange(10, 10000)
-    c = WebRTCClient(our_id, args.peerid, args.server)
+    c = WebRTCClient(args.device_id)
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(c.connect())
-    res = loop.run_until_complete(c.loop())
+    loop.run_forever()
+    # loop.run_until_complete(c.connect())
+    # res = loop.run_until_complete(c.loop())
     sys.exit(res)
