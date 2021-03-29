@@ -1,0 +1,101 @@
+<!doctype html>
+<html>
+  <head>
+    <title>This is the title of the webpage!</title>
+    <meta content="text/html;charset=utf-8" http-equiv="Content-Type">
+    <meta content="utf-8" http-equiv="encoding">
+
+  </head>
+  <body>
+    <script src="https://www.gstatic.com/firebasejs/8.3.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.2.10/firebase-firestore.js"></script>
+    <script src="firebase.js"></script>
+
+    <script>
+      // Firebase
+  
+      firebase.initializeApp(firebaseConfig);
+
+
+      // WebRTC
+      var peer_connection = null;
+      var rtc_configuration = {iceServers: [{urls: "stun:stun.services.mozilla.com"},
+                                      {urls: "stun:stun.l.google.com:19302"}]};
+
+
+      function onRemoteTrack(event) {
+          if (document.getElementById("stream").srcObject !== event.streams[0]) {
+              console.log('Incoming stream');
+              document.getElementById("stream").srcObject = event.streams[0];
+          }
+      }
+
+      async function onLocalDescription(description) {
+        console.log("Got local description: " + JSON.stringify(description));
+        peer_connection.setLocalDescription(description).then(function() {
+            let sdp = peer_connection.localDescription
+            sendAndWaitSDP({"sdp": sdp["sdp"], "type": "offer"});
+        });
+      }
+
+      async function createCall() {
+        peer_connection = new RTCPeerConnection(rtc_configuration);
+        peer_connection.ontrack = onRemoteTrack;
+        peer_connection.createOffer().then(onLocalDescription).catch(error => {
+          console.error("Error", error);
+        });
+      }
+
+      // SDP offer received from peer, set remote description and create an answer
+      function onIncomingSDP(sdp) {
+          peer_connection.setRemoteDescription(sdp).then(() => {
+              console.log("Remote SDP set");
+          }).catch(error => {
+            console.error("Error", error);
+          });
+      }
+
+      
+      async function sendAndWaitSDP(sdp) {
+        let requestId = "newRequest";
+        let clientId = "INAq9J4xdyYZWkLZBltq";
+        let deviceId = "cOpVPvoCZsGcLbUnaCmp";
+
+        const db = firebase.firestore();
+
+        const data = {
+          peerSDP: sdp,
+        };
+
+        // add peerRequest
+        let peerRequestRef = db.collection('clients')
+                               .doc(clientId)
+                               .collection("devices")
+                               .doc(deviceId)
+                               .collection("peerRequests")
+                               .doc(requestId)
+
+        let res = await peerRequestRef.set(data);
+        if(!res) {
+          console.log("Success");
+        }else {
+          console.error("ERROR", res);
+          return;
+        }
+
+        // Listen request state
+        peerRequestRef.onSnapshot(snapshot => {
+          let data = snapshot.data();
+          console.log(data);
+          if(data["deviceSDP"]) {
+            let sdp = data["deviceSDP"];
+            onIncomingSDP({"sdp": sdp, "type": "answer"});
+          }
+        })
+
+      }
+
+    </script>
+
+  </body>
+</html>

@@ -16,6 +16,22 @@ from gi.repository import GstWebRTC  # noqa: E402
 from gi.repository import GstSdp  # noqa: E402
 
 
+
+
+# PIPELINE_DESC = '''
+# webrtcbin
+#     name=sendrecv
+#     bundle-policy=max-bundle
+#     stun-server=stun://stun.l.google.com:19302
+#  rtspsrc location=rtsp://admin:compuaras19@192.168.100.187:554/cam/realmonitor?channel=1&subtype=0 ! queue ! rtpjitterbuffer latency=500 ! rtph264depay ! h264parse ! omxh264dec ! nvvidconv ! queue ! video/x-raw(memory:NVMM), width=(int)640, height=(int)480, format=(string)I420 ! omxvp8enc control-rate=2 bitrate=150000 ! rtpvp8pay ! queue ! application/x-rtp,media=video,encoding-name=VP8,payload=96 ! sendrecv.
+#  audiotestsrc
+#     is-live=true
+#     wave=red-noise !
+#  audioconvert ! audioresample ! queue ! opusenc ! rtpopuspay ! queue !
+#  application/x-rtp,media=audio,encoding-name=OPUS,payload=97 ! sendrecv.
+# '''
+
+
 PIPELINE_DESC = '''
 webrtcbin
     name=sendrecv
@@ -26,15 +42,14 @@ webrtcbin
     host=192.168.100.203
     do-timestamp=true !
  h264parse ! omxh264dec ! nvvidconv ! queue !
- omxvp9enc control-rate=2 bitrate=650000 ! rtpvp9pay !
- queue ! application/x-rtp,media=video,encoding-name=VP9,payload=96 ! sendrecv.
+ omxvp8enc control-rate=2 bitrate=650000 ! rtpvp8pay !
+ queue ! application/x-rtp,media=video,encoding-name=VP8,payload=96 ! sendrecv.
  audiotestsrc
     is-live=true
     wave=red-noise !
  audioconvert ! audioresample ! queue ! opusenc ! rtpopuspay ! queue !
  application/x-rtp,media=audio,encoding-name=OPUS,payload=97 ! sendrecv.
 '''
-
 
 class WebRTCClient:
     def __init__(self, id_, peer_id, server):
