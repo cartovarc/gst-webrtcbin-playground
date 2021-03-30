@@ -4,7 +4,14 @@ class WebRTCStreaming {
     initialize(device_id, video_element, audio_element) {
 
         this.firebaseConfig = {
-
+            apiKey: "AIzaSyAgckzznbtuOCrPBLLpbdZMbUy7dYVUxGE",
+            authDomain: "mufyapp.firebaseapp.com",
+            databaseURL: "https://mufyapp-default-rtdb.firebaseio.com",
+            projectId: "mufyapp",
+            storageBucket: "mufyapp.appspot.com",
+            messagingSenderId: "61596126014",
+            appId: "1:61596126014:web:4a1b7f5e1417df2936ba6f",
+            measurementId: "G-TBFV7V1DC4"
         };
 
         firebase.initializeApp(this.firebaseConfig);
@@ -44,24 +51,31 @@ class WebRTCStreaming {
         }
     }
 
-    async waitSDP() {
+
+    async listenIceCandidates() {
         let me = this;
-        me.peerRequestRef.onSnapshot(snapshot => {
-            let data = snapshot.data();
-            console.log(data);
-            if (data["deviceSDP"]) {
-                let sdp = data["deviceSDP"];
-                console.log(JSON.parse(sdp));
-                me.pc.setRemoteDescription(JSON.parse(sdp));
+        me.peerRequestRef.collection("iceCandidates").onSnapshot(querySnapshot => {
+
+            if (!querySnapshot.docChanges().empty) {     
+                querySnapshot.forEach(function (doc) {
+                    let candidate = doc.data();
+                    me.pc.addIceCandidate(candidate);
+                });
             }
         })
     }
 
-    async listenIceCandidates() {
+    async waitSDP() {
         let me = this;
-        me.peerRequestRef.collection("iceCandidates").onSnapshot(snapshot => {
+        me.peerRequestRef.onSnapshot(snapshot => {
             let data = snapshot.data();
-            console.log("iceCandidate", data);
+            if (data && data["deviceSDP"]) {
+                let sdp = data["deviceSDP"];
+                console.log(JSON.parse(sdp));
+                me.pc.setRemoteDescription(JSON.parse(sdp)).then(() => {
+                    me.listenIceCandidates();
+                });
+            }
         })
     }
 
@@ -92,7 +106,6 @@ class WebRTCStreaming {
             });
         }).then(function () {
             let sdp = me.pc.localDescription;
-            me.listenIceCandidates();
             me.sendSDP(JSON.stringify(sdp));
             me.waitSDP();
         });

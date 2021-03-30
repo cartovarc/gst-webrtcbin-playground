@@ -103,21 +103,25 @@ class WebRTCClient:
         ref_play_request.set({"deviceSDP": msg})
 
 
-    def on_offer_created(self, promise, _, __):
-        print("on_offer_created")
-        promise.wait()
+    def on_answer_created(self, promise, _, __):
+        print("on_answer_created")
+        ret = promise.wait()
+
+        if ret != Gst.PromiseResult.REPLIED:
+            return
+
         reply = promise.get_reply()
-        offer = reply.get_value("offer")
+        answer = reply.get_value("answer")
         promise = Gst.Promise.new()
-        self.webrtc.emit('set-local-description', offer, promise)
+        self.webrtc.emit('set-local-description', answer, promise)
         promise.interrupt()
-        self.send_sdp_offer(offer)
+        self.send_sdp_answer(offer)
 
     def on_negotiation_needed(self, element):
         print("on_negotiation_needed")
-        promise = Gst.Promise.new_with_change_func(self.on_offer_created,
+        promise = Gst.Promise.new_with_change_func(self.on_answer_created,
                                                    element, None)
-        element.emit('create-offer', None, promise)
+        element.emit('create-answer', None, promise)
 
     def send_ice_candidate_message(self, _, mlineindex, candidate):
         print("send_ice_candidate_message")
@@ -132,7 +136,7 @@ class WebRTCClient:
 
         db_firestore = firestore.client()
         ref_ice_candidate = db_firestore.collection('clients').document(clientId).collection("devices").document(deviceId).collection("peerRequests").document(requestId).collection("iceCandidates").document("candidate")
-        ref_ice_candidate.set({"hola", "mundo"})
+        ref_ice_candidate.set({'candidate': candidate, 'sdpMLineIndex': mlineindex})
 
     def start_pipeline(self):
         print("start_pipeline")
